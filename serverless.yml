@@ -1,0 +1,112 @@
+service: VisitorsRegSrv
+frameworkVersion: "3"
+
+plugins:
+  - serverless-esbuild
+  - serverless-offline
+  - serverless-dynamodb-local
+
+provider:
+  name: aws
+  tracing:
+    apiGateway: true
+  runtime: nodejs14.x
+  memorySize: 128 # optional, in MB, default is 1024
+  stage: ${opt:stage, 'dev'}
+  region: us-east-1
+  environment:
+    AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1,
+    NODE_OPTIONS: "--enable-source-maps --stack-trace-limit=1000"
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+            - dynamodb:DescribeTable
+          Resource: "arn:aws:dynamodb:us-east-1:*:table/VisitsTable"
+  httpApi:
+    # metrics: true # Enable if you need
+    cors: true
+
+package:
+  exclude:
+    - .gitignore
+    - README.md
+    - serverless.yml
+    - nest-cli.json
+    - .prettierrc
+  excludeDevDependencies: true
+  individually: true
+
+functions:
+  api:
+    handler: src/index.apiExpress
+    events:
+      - httpApi:
+          method: ANY
+          path: /api
+  createVisit:
+    handler: src/functions/visits/create.createVisit
+    events:
+      - httpApi:
+          method: post
+          path: /visit
+  getVisit:
+    handler: src/functions/visits/get.getVisit
+    events:
+      - httpApi:
+          method: get
+          path: /visit/{id}
+  getAllVisits:
+    handler: src/functions/visits/getAll.getAllVisits
+    events:
+      - httpApi:
+          method: get
+          path: /visit
+  updateVisit:
+    handler: src/functions/visits/updete.updateVisit
+    events:
+      - httpApi:
+          method: put
+          path: /visit/{id}
+  deleteVisit:
+    handler: src/functions/visits/delete.deleteVisit
+    events:
+      - httpApi:
+          method: delete
+          path: /visit/{id}
+resources:
+  Resources:
+    VisitsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: VisitsTable
+        AttributeDefinitions:
+          - AttributeName: visitId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: visitId
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+
+custom:
+  tableName: "users-table-${sls:stage}"
+  esbuild:
+    bundle: true
+    minify: false
+    sourcemap: true
+    exclude:
+      - aws-sdk
+    target: node14
+    define:
+      "require.resolve": undefined
+    platform: "node"
+    concurrency: 10
